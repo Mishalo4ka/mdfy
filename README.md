@@ -19,7 +19,19 @@ Mdfy turns text, screenshots, slide photos, and public articles into clean Markd
 - An OpenAI-compatible `/chat/completions` endpoint.
 - A vision-capable model for image input.
 
-## Install for development
+## Install
+
+Mdfy is not yet listed in Obsidian's Community plugins directory, so install this release manually:
+
+1. Open the [latest release](https://github.com/Mishalo4ka/mdfy/releases/latest) and download **`main.js`**, **`manifest.json`**, and **`styles.css`** from **Assets**. Do not download the source code archive instead.
+2. Open your Obsidian vault folder. Inside it, create `.obsidian/plugins/mdfy/` if it does not already exist. The `.obsidian` folder may be hidden in your file manager.
+3. Put all three downloaded files directly in `mdfy/`, so the paths end with `mdfy/main.js`, `mdfy/manifest.json`, and `mdfy/styles.css`.
+4. Restart Obsidian. Open **Settings → Community plugins**, turn on community plugins if needed, and enable **Mdfy** under installed plugins.
+5. Open **Settings → Community plugins → Mdfy** to enter your API base URL and model, then select or create an API key in Obsidian SecretStorage. Use **Test connection** to check the settings.
+
+To update a manual installation, replace the same three files with the files from a newer release and restart Obsidian.
+
+## Build from source
 
 ```bash
 npm install
