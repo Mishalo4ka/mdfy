@@ -1,0 +1,181 @@
+.mdfy-modal {
+  width: min(760px, 92vw);
+}
+
+.mdfy-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-3);
+  padding-right: 32px;
+  margin-bottom: var(--size-4-4);
+}
+
+.mdfy-header h2 {
+  margin: 0;
+}
+
+.mdfy-source-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  flex-shrink: 0;
+}
+
+.mdfy-source-button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.mdfy-source-button.is-active {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.mdfy-source {
+  margin-bottom: var(--size-4-4);
+}
+
+.mdfy-source-text,
+.mdfy-result,
+.mdfy-url-input,
+.mdfy-instruction-input {
+  width: 100%;
+}
+
+.mdfy-instruction-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-4);
+}
+
+.mdfy-instruction-input {
+  min-height: 36px;
+  resize: vertical;
+}
+
+.mdfy-instruction-block .setting-item-name,
+.mdfy-context-setting .setting-item-name {
+  font-size: var(--font-ui-medium);
+  font-weight: 600;
+}
+
+.mdfy-context-setting {
+  align-items: center;
+}
+
+.mdfy-context-setting .setting-item-control {
+  align-self: center;
+}
+
+.mdfy-source-text,
+.mdfy-result {
+  resize: vertical;
+  font-family: var(--font-monospace);
+  line-height: 1.5;
+}
+
+.mdfy-paste-zone {
+  margin: var(--size-4-3) 0;
+  padding: var(--size-4-5);
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.mdfy-paste-zone:focus,
+.mdfy-paste-zone.is-dragging {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.mdfy-paste-zone.is-dragging {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.mdfy-image-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-3);
+}
+
+.mdfy-image-item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--size-4-3);
+  padding: var(--size-4-2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+}
+
+.mdfy-image-item img {
+  width: 64px;
+  height: 48px;
+  border-radius: var(--radius-s);
+  object-fit: cover;
+}
+
+.mdfy-image-details {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.mdfy-image-details strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mdfy-image-details span,
+.mdfy-status,
+.mdfy-timing {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.mdfy-image-actions,
+.mdfy-result-actions,
+.mdfy-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+}
+
+.mdfy-footer {
+  justify-content: space-between;
+  margin-top: var(--size-4-4);
+}
+
+.mdfy-result-actions {
+  justify-content: flex-end;
+  margin-top: var(--size-4-4);
+}
+
+.mdfy-result-actions button:first-child {
+  margin-right: auto;
+}
+
+@media (max-width: 600px) {
+  .mdfy-image-item {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .mdfy-image-item img {
+    width: 48px;
+    height: 48px;
+  }
+
+  .mdfy-image-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "mdfy",
+  "name": "Mdfy",
+  "version": "0.1.0",
+  "minAppVersion": "1.11.4",
+  "description": "Turn text, images, and articles into clean Markdown using your own LLM.",
+  "author": "Mikhail Onishchenko",
+  "isDesktopOnly": true
+}
