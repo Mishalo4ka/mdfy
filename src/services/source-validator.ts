@@ -128,13 +128,16 @@ export async function fileToImageAsset(file: File): Promise<ImageAsset> {
   let image = file;
   if (heic) {
     try {
-      const { default: heic2any } = await import("heic2any");
-      const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 });
-      const jpeg = Array.isArray(converted) ? converted[0] : converted;
-      if (!jpeg?.size) throw new Error("No image produced");
+      const { heicTo } = await import("heic-to/csp");
+      const jpeg = await heicTo({ blob: file, type: "image/jpeg", quality: 0.92 });
+      if (!jpeg.size) throw new Error("No image produced");
       image = new File([jpeg], file.name.replace(/\.heic$/i, ".jpg"), { type: "image/jpeg" });
-    } catch {
-      throw new SourceValidationError(`Could not convert ${file.name} from HEIC to JPEG.`);
+    } catch (error) {
+      const environmentIssue = /content security policy|unsafe-eval|worker/i.test(String(error));
+      const hint = environmentIssue
+        ? "This Obsidian environment blocked local HEIC decoding."
+        : "The image may use an unsupported HEIC variant, or local decoding may be blocked.";
+      throw new SourceValidationError(`Could not convert ${file.name} from HEIC to JPEG. ${hint}`, { cause: error });
     }
     if (image.size > MAX_IMAGE_BYTES) throw new SourceValidationError(`${file.name} is larger than 10 MB after conversion.`);
   }

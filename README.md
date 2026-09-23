@@ -85,4 +85,12 @@ Run `npm version patch`, `npm version minor`, or `npm version major` to keep `pa
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The bundled HEIC decoder uses LGPL-licensed components; see
+[third-party notices](THIRD_PARTY_NOTICES.md), the [LGPL license text](licenses/heic-to-LGPL-3.0.txt),
+and the [GPL license text](licenses/GPL-3.0.txt). These notices and license texts
+are embedded in the installed `main.js` as well as attached to each release.
+
+Only import HEIC files you trust. The bundled `heic-to` 1.5.2 currently uses
+libheif 1.22.2, which has [published security advisories](https://github.com/strukturag/libheif/security/advisories).
+Mdfy processes HEIC locally, but this bundled decoder has not yet been updated
+to a patched libheif version.

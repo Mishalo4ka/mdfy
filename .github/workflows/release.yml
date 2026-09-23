@@ -20,9 +20,19 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Verify installed bundle contains license texts
+        run: node -e 'const fs = require("fs"); const bundle = fs.readFileSync("main.js", "utf8"); for (const file of ["LICENSE", "THIRD_PARTY_NOTICES.md", "licenses/heic-to-LGPL-3.0.txt", "licenses/GPL-3.0.txt"]) if (!bundle.includes(fs.readFileSync(file, "utf8"))) throw new Error(`Missing ${file} from main.js`);'
+      - name: Download corresponding decoder sources
+        run: |
+          curl -fLsS --retry 3 https://github.com/hoppergee/heic-to/archive/refs/tags/v1.5.2.tar.gz -o heic-to-v1.5.2-source.tar.gz
+          curl -fLsS --retry 3 https://github.com/strukturag/libheif/archive/refs/tags/v1.22.2.tar.gz -o libheif-v1.22.2-source.tar.gz
+          curl -fLsS --retry 3 https://github.com/strukturag/libde265/archive/refs/tags/v1.0.16.tar.gz -o libde265-v1.0.16-source.tar.gz
+          tar -xOf heic-to-v1.5.2-source.tar.gz heic-to-1.5.2/dist/csp/heic-to.js | cmp - node_modules/heic-to/dist/csp/heic-to.js
+          tar -xOf libheif-v1.22.2-source.tar.gz libheif-1.22.2/COPYING > /dev/null
+          tar -xOf libde265-v1.0.16-source.tar.gz libde265-1.0.16/COPYING > /dev/null
       - name: Validate release version
         run: test "${GITHUB_REF_NAME}" = "$(node -p "require('./manifest.json').version")"
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" manifest.json main.js styles.css --notes-file .github/release-notes.md --title "${GITHUB_REF_NAME}"
+        run: gh release create "${GITHUB_REF_NAME}" manifest.json main.js styles.css LICENSE THIRD_PARTY_NOTICES.md licenses/heic-to-LGPL-3.0.txt licenses/GPL-3.0.txt heic-to-v1.5.2-source.tar.gz libheif-v1.22.2-source.tar.gz libde265-v1.0.16-source.tar.gz --notes-file .github/release-notes.md --title "${GITHUB_REF_NAME}"

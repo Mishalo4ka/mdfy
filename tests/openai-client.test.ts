@@ -1,9 +1,12 @@
+import { heicTo } from "heic-to/csp";
 import { describe, expect, it, vi } from "vitest";
 import { OpenAiCompatibleClient, chatCompletionsUrl, responsesUrl } from "../src/services/openai-client";
 import { buildPrompt } from "../src/services/prompt-builder";
-import { fileToTextSource, validateTextLength } from "../src/services/source-validator";
+import { fileToImageAsset, fileToTextSource, validateTextLength } from "../src/services/source-validator";
 import type { HttpRequester } from "../src/services/http";
 import type { MdfySettings, PromptPayload } from "../src/types";
+
+vi.mock("heic-to/csp", () => ({ heicTo: vi.fn() }));
 
 const settings: MdfySettings = {
   baseUrl: "https://provider.example/v1/",
@@ -50,6 +53,20 @@ describe("OpenAiCompatibleClient", () => {
     expect(call?.headers?.Authorization).toBe("Bearer secret");
     expect(call?.body).toContain('"type":"image_url"');
     expect(call?.body).toContain("data:image/png;base64,AA==");
+  });
+
+  it("sends converted HEIC as JPEG through Chat Completions", async () => {
+    vi.mocked(heicTo).mockResolvedValue(new Blob([new Uint8Array([0xff, 0xd8, 0xff])], { type: "image/jpeg" }));
+    const asset = await fileToImageAsset(new File(["heic"], "photo.HEIC"));
+    const request: HttpRequester = vi.fn(async () => ({
+      status: 200, headers: {}, text: "", json: { choices: [{ message: { content: "# Done" } }] },
+    }));
+    await new OpenAiCompatibleClient(request).complete(settings, null, { ...prompt, images: [asset] });
+    const call = vi.mocked(request).mock.calls[0]?.[0];
+    expect(call?.url).toBe("https://provider.example/v1/chat/completions");
+    expect(call?.body).toContain(`"url":"${asset.dataUrl}"`);
+    expect(asset.dataUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(call?.body).not.toContain("image/heic");
   });
 
   it("sends TXT/MD files through Chat Completions and applies the text limit", async () => {

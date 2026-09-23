@@ -1,4 +1,4 @@
-import heic2any from "heic2any";
+import { heicTo } from "heic-to/csp";
 import { describe, expect, it, vi } from "vitest";
 import {
   SourceValidationError,
@@ -13,7 +13,7 @@ import {
 } from "../src/services/source-validator";
 import { MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES, type ImageAsset } from "../src/types";
 
-vi.mock("heic2any", () => ({ default: vi.fn() }));
+vi.mock("heic-to/csp", () => ({ heicTo: vi.fn() }));
 
 const image = (overrides: Partial<ImageAsset> = {}): ImageAsset => ({
   id: "id",
@@ -77,19 +77,24 @@ describe("source validation", () => {
   });
 
   it("converts HEIC with empty MIME to JPEG and enforces size limits", async () => {
-    vi.mocked(heic2any).mockResolvedValue(new Blob(["jpeg"], { type: "image/jpeg" }));
+    vi.mocked(heicTo).mockResolvedValue(new Blob(["jpeg"], { type: "image/jpeg" }));
     const asset = await fileToImageAsset(new File(["heic"], "photo.HEIC"));
     expect(asset.name).toBe("photo.HEIC");
     expect(asset.mimeType).toBe("image/jpeg");
     expect(asset.dataUrl).toMatch(/^data:image\/jpeg;base64,/);
-    expect(heic2any).toHaveBeenCalledWith(expect.objectContaining({ toType: "image/jpeg" }));
+    expect(heicTo).toHaveBeenCalledWith(expect.objectContaining({ type: "image/jpeg" }));
     const huge = new File(["x"], "huge.heic");
     Object.defineProperty(huge, "size", { value: MAX_IMAGE_BYTES + 1 });
     await expect(fileToImageAsset(huge)).rejects.toThrow("larger than 10 MB");
     const converted = new Blob([new Uint8Array(MAX_IMAGE_BYTES + 1)]);
-    vi.mocked(heic2any).mockResolvedValue(converted);
+    vi.mocked(heicTo).mockResolvedValue(converted);
     await expect(fileToImageAsset(new File(["x"], "photo.heic"))).rejects.toThrow("after conversion");
-    vi.mocked(heic2any).mockRejectedValue(new Error("decoder failed"));
-    await expect(fileToImageAsset(new File(["x"], "photo.heic"))).rejects.toThrow("Could not convert");
+    vi.mocked(heicTo).mockResolvedValue(new Blob());
+    await expect(fileToImageAsset(new File(["x"], "photo.heic"))).rejects.toThrow("unsupported HEIC variant");
+    const cause = new Error("decoder failed");
+    vi.mocked(heicTo).mockRejectedValue(cause);
+    await expect(fileToImageAsset(new File(["x"], "photo.heic"))).rejects.toMatchObject({ cause });
+    vi.mocked(heicTo).mockRejectedValue(new Error("Worker blocked by Content Security Policy"));
+    await expect(fileToImageAsset(new File(["x"], "photo.heic"))).rejects.toThrow("environment blocked");
   });
 });

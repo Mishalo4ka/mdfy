@@ -1,6 +1,6 @@
 {
   "name": "mdfy",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Turn text, images, and articles into clean Markdown inside Obsidian.",
   "main": "main.js",
   "type": "module",
@@ -22,7 +22,7 @@
   "license": "MIT",
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "heic2any": "^0.0.4",
+    "heic-to": "1.5.2",
     "turndown": "^7.2.1",
     "turndown-plugin-gfm": "^1.0.2"
   },
