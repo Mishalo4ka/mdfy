@@ -4,8 +4,11 @@ import { buildPrompt } from "../services/prompt-builder";
 import {
   fileToDocumentAsset,
   fileToImageAsset,
+  fileToTextSource,
+  isTextFile,
   SourceValidationError,
   validateDocumentFile,
+  validateTextFile,
   validateImages,
   validateTextLength,
 } from "../services/source-validator";
@@ -78,8 +81,8 @@ export class MdfyModal extends Modal {
       attr: { role: "group", "aria-label": "Source type" },
     });
     this.addSourceButton(sourcePicker, "text", "Text", "file-text");
-    this.addSourceButton(sourcePicker, "images", "Images", "image");
     this.addSourceButton(sourcePicker, "url", "URL", "link");
+    this.addSourceButton(sourcePicker, "images", "Images", "image");
     this.addSourceButton(sourcePicker, "file", "Files", "paperclip");
 
     const sourceContainer = contentEl.createDiv({ cls: "mdfy-source" });
@@ -173,12 +176,12 @@ export class MdfyModal extends Modal {
   private renderImageSource(container: HTMLElement): void {
     container.createEl("p", {
       cls: "setting-item-description",
-      text: "Add up to 10 JPEG, PNG, or WebP images in reading order. The selected model must support vision.",
+      text: "Add up to 10 JPEG, PNG, WebP, or HEIC images in reading order. HEIC is converted locally to JPEG. The selected model must support vision.",
     });
 
     const picker = container.createEl("input", {
       type: "file",
-      attr: { accept: "image/jpeg,image/png,image/webp", multiple: "true" },
+      attr: { accept: "image/jpeg,image/png,image/webp,.heic", multiple: "true" },
     });
     picker.addEventListener("change", () => {
       void this.addFiles(Array.from(picker.files ?? []));
@@ -190,7 +193,7 @@ export class MdfyModal extends Modal {
       attr: { tabindex: "0" },
     });
     pasteZone.addEventListener("paste", (event) => {
-      const files = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith("image/"));
+      const files = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith("image/") || /\.heic$/i.test(file.name));
       if (files.length > 0) {
         event.preventDefault();
         void this.addFiles(files);
@@ -220,20 +223,21 @@ export class MdfyModal extends Modal {
   private renderFileSource(container: HTMLElement): void {
     container.createEl("p", {
       cls: "setting-item-description",
-      text: "Choose one PDF, DOCX, or PPTX file (up to 20 MB). The whole file is sent to your provider through the Responses API. PDF pages can be read visually; embedded images and charts in DOCX and PPTX may be missed.",
+      text: "Choose one TXT, MD, PDF, DOCX, or PPTX file (up to 20 MB). TXT and MD use Chat Completions; PDF, DOCX, and PPTX require your provider's Responses API.",
     });
     const picker = container.createEl("input", {
       type: "file",
       attr: {
-        accept: ".pdf,.docx,.pptx",
-        "aria-label": "Choose a PDF, DOCX, or PPTX file",
+        accept: ".txt,.md,.pdf,.docx,.pptx",
+        "aria-label": "Choose a TXT, MD, PDF, DOCX, or PPTX file",
       },
     });
     picker.addEventListener("change", () => {
       const file = picker.files?.[0];
       if (!file) return;
       try {
-        validateDocumentFile(file);
+        if (isTextFile(file)) validateTextFile(file);
+        else validateDocumentFile(file);
         this.documentFile = file;
         this.renderInput();
       } catch (error) {
@@ -362,7 +366,8 @@ export class MdfyModal extends Modal {
         return this.articleExtractor.extract(this.url);
       }
       case "file": {
-        if (!this.documentFile) throw new SourceValidationError("Choose a PDF, DOCX, or PPTX file first.");
+        if (!this.documentFile) throw new SourceValidationError("Choose a TXT, MD, PDF, DOCX, or PPTX file first.");
+        if (isTextFile(this.documentFile)) return fileToTextSource(this.documentFile);
         return { kind: "file", file: await fileToDocumentAsset(this.documentFile) } satisfies DocumentSource;
       }
     }

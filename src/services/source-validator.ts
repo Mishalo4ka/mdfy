@@ -7,6 +7,7 @@ import {
   SUPPORTED_IMAGE_TYPES,
   type DocumentAsset,
   type ImageAsset,
+  type TextSource,
 } from "../types";
 
 export class SourceValidationError extends Error {}
@@ -69,6 +70,34 @@ export function validateDocumentFile(file: File): DocumentAsset["mimeType"] {
   return DOCUMENT_MIME_TYPES[extension as keyof typeof DOCUMENT_MIME_TYPES];
 }
 
+export function isTextFile(file: File): boolean {
+  return /\.(txt|md)$/i.test(file.name);
+}
+
+export function validateTextFile(file: File): void {
+  if (!isTextFile(file)) throw new SourceValidationError("Choose a TXT or MD file.");
+  if (file.size === 0) throw new SourceValidationError("The selected file is empty.");
+  if (file.size > MAX_DOCUMENT_BYTES) throw new SourceValidationError("The file is larger than 20 MB.");
+}
+
+export async function fileToTextSource(file: File): Promise<TextSource> {
+  validateTextFile(file);
+  const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(new SourceValidationError(`Could not read ${file.name}.`));
+    reader.readAsArrayBuffer(file);
+  });
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(buffer).replace(/^\uFEFF/, "");
+  } catch {
+    throw new SourceValidationError(`${file.name} is not valid UTF-8 text.`);
+  }
+  if (!text.trim()) throw new SourceValidationError("The selected file contains no text.");
+  return { kind: "text", name: file.name, text };
+}
+
 export async function fileToDocumentAsset(file: File): Promise<DocumentAsset> {
   const mimeType = validateDocumentFile(file);
   const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -88,25 +117,40 @@ export async function fileToDocumentAsset(file: File): Promise<DocumentAsset> {
 }
 
 export async function fileToImageAsset(file: File): Promise<ImageAsset> {
-  if (!SUPPORTED_IMAGE_TYPES.includes(file.type as ImageAsset["mimeType"])) {
-    throw new SourceValidationError(`${file.name} is not a JPEG, PNG, or WebP image.`);
+  const heic = /\.heic$/i.test(file.name) || file.type === "image/heic";
+  if (!heic && !SUPPORTED_IMAGE_TYPES.includes(file.type as ImageAsset["mimeType"])) {
+    throw new SourceValidationError(`${file.name} is not a JPEG, PNG, WebP, or HEIC image.`);
   }
   if (file.size > MAX_IMAGE_BYTES) {
     throw new SourceValidationError(`${file.name} is larger than 10 MB.`);
+  }
+
+  let image = file;
+  if (heic) {
+    try {
+      const { default: heic2any } = await import("heic2any");
+      const converted = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.92 });
+      const jpeg = Array.isArray(converted) ? converted[0] : converted;
+      if (!jpeg?.size) throw new Error("No image produced");
+      image = new File([jpeg], file.name.replace(/\.heic$/i, ".jpg"), { type: "image/jpeg" });
+    } catch {
+      throw new SourceValidationError(`Could not convert ${file.name} from HEIC to JPEG.`);
+    }
+    if (image.size > MAX_IMAGE_BYTES) throw new SourceValidationError(`${file.name} is larger than 10 MB after conversion.`);
   }
 
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
     reader.onerror = () => reject(new SourceValidationError(`Could not read ${file.name}.`));
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(image);
   });
 
   return {
     id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
     name: file.name || "Clipboard image",
-    mimeType: file.type as ImageAsset["mimeType"],
-    size: file.size,
+    mimeType: image.type as ImageAsset["mimeType"],
+    size: image.size,
     dataUrl,
   };
 }

@@ -14,6 +14,7 @@ export const DOCUMENT_MIME_TYPES = {
 export interface TextSource {
   kind: "text";
   text: string;
+  name?: string;
 }
 
 export interface ImageAsset {

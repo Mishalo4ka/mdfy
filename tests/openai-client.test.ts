@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { OpenAiCompatibleClient, chatCompletionsUrl, responsesUrl } from "../src/services/openai-client";
+import { buildPrompt } from "../src/services/prompt-builder";
+import { fileToTextSource, validateTextLength } from "../src/services/source-validator";
 import type { HttpRequester } from "../src/services/http";
 import type { MdfySettings, PromptPayload } from "../src/types";
 
@@ -48,6 +50,23 @@ describe("OpenAiCompatibleClient", () => {
     expect(call?.headers?.Authorization).toBe("Bearer secret");
     expect(call?.body).toContain('"type":"image_url"');
     expect(call?.body).toContain("data:image/png;base64,AA==");
+  });
+
+  it("sends TXT/MD files through Chat Completions and applies the text limit", async () => {
+    const request: HttpRequester = vi.fn(async () => ({
+      status: 200, headers: {}, text: "", json: { choices: [{ message: { content: "# Done" } }] },
+    }));
+    for (const name of ["notes.txt", "notes.md"]) {
+      const source = await fileToTextSource(new File(["# Source"], name));
+      const textPrompt = buildPrompt({ source });
+      expect(() => validateTextLength(textPrompt.textLength, 5)).toThrow("above the configured");
+      await new OpenAiCompatibleClient(request).complete(settings, null, textPrompt);
+    }
+    for (const [call] of vi.mocked(request).mock.calls) {
+      expect(call.url).toBe("https://provider.example/v1/chat/completions");
+      expect(call.body).toContain("# Source");
+      expect(call.body).not.toContain("input_file");
+    }
   });
 
   it("maps provider errors to actionable messages", async () => {

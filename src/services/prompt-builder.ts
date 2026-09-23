@@ -39,7 +39,7 @@ export function buildPrompt(options: BuildPromptOptions): PromptPayload {
 function formatSource(source: PromptSource): string {
   switch (source.kind) {
     case "text":
-      return source.text.trim();
+      return source.name ? `File: ${source.name}\n\n${source.text.trim()}` : source.text.trim();
     case "images":
       return describeImages(source);
     case "article": {

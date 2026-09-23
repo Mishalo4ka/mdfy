@@ -1,13 +1,19 @@
-import { describe, expect, it } from "vitest";
+import heic2any from "heic2any";
+import { describe, expect, it, vi } from "vitest";
 import {
   SourceValidationError,
   fileToDocumentAsset,
+  fileToImageAsset,
+  fileToTextSource,
+  validateTextFile,
   validateDocumentFile,
   validateHttpUrl,
   validateImages,
   validateTextLength,
 } from "../src/services/source-validator";
 import { MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES, type ImageAsset } from "../src/types";
+
+vi.mock("heic2any", () => ({ default: vi.fn() }));
 
 const image = (overrides: Partial<ImageAsset> = {}): ImageAsset => ({
   id: "id",
@@ -56,5 +62,34 @@ describe("source validation", () => {
     const asset = await fileToDocumentAsset(pdf);
     expect(asset.dataUrl).toMatch(/^data:application\/pdf;base64,/);
     expect(asset.name).toBe("Table.PDF");
+  });
+
+  it("reads TXT and MD as UTF-8 text and rejects invalid or empty input", async () => {
+    const markdown = new File(["# Привет"], "notes.md");
+    expect(await fileToTextSource(markdown)).toEqual({ kind: "text", name: "notes.md", text: "# Привет" });
+    expect((await fileToTextSource(new File(["hello"], "notes.txt"))).text).toBe("hello");
+    expect(() => validateTextFile(new File([], "empty.txt"))).toThrow("empty");
+    await expect(fileToTextSource(new File(["   "], "blank.md"))).rejects.toThrow("no text");
+    await expect(fileToTextSource(new File([new Uint8Array([0xff])], "bad.txt"))).rejects.toThrow("UTF-8");
+    const huge = new File(["x"], "huge.md");
+    Object.defineProperty(huge, "size", { value: MAX_DOCUMENT_BYTES + 1 });
+    expect(() => validateTextFile(huge)).toThrow("20 MB");
+  });
+
+  it("converts HEIC with empty MIME to JPEG and enforces size limits", async () => {
+    vi.mocked(heic2any).mockResolvedValue(new Blob(["jpeg"], { type: "image/jpeg" }));
+    const asset = await fileToImageAsset(new File(["heic"], "photo.HEIC"));
+    expect(asset.name).toBe("photo.HEIC");
+    expect(asset.mimeType).toBe("image/jpeg");
+    expect(asset.dataUrl).toMatch(/^data:image\/jpeg;base64,/);
+    expect(heic2any).toHaveBeenCalledWith(expect.objectContaining({ toType: "image/jpeg" }));
+    const huge = new File(["x"], "huge.heic");
+    Object.defineProperty(huge, "size", { value: MAX_IMAGE_BYTES + 1 });
+    await expect(fileToImageAsset(huge)).rejects.toThrow("larger than 10 MB");
+    const converted = new Blob([new Uint8Array(MAX_IMAGE_BYTES + 1)]);
+    vi.mocked(heic2any).mockResolvedValue(converted);
+    await expect(fileToImageAsset(new File(["x"], "photo.heic"))).rejects.toThrow("after conversion");
+    vi.mocked(heic2any).mockRejectedValue(new Error("decoder failed"));
+    await expect(fileToImageAsset(new File(["x"], "photo.heic"))).rejects.toThrow("Could not convert");
   });
 });
