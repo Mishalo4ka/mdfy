@@ -316,7 +316,7 @@ export class MdfyModal extends Modal {
     let sourceReadyAt = startedAt;
     let phase = this.activeTab === "url" ? "Extracting article" : this.activeTab === "file" ? "Reading file" : "Preparing request";
     const timer = window.setInterval(() => {
-      status.setText(`${phase}… ${formatSeconds(performance.now() - startedAt)}`);
+      status.setText(`${phase}… ${formatSeconds(performance.now() - startedAt, true)}`);
     }, 1_000);
 
     try {
@@ -334,7 +334,7 @@ export class MdfyModal extends Modal {
       });
       validateTextLength(prompt.textLength, this.settings.maxInputCharacters);
       phase = "Waiting for the model";
-      status.setText(`${phase}… ${formatSeconds(performance.now() - startedAt)}`);
+      status.setText(`${phase}… ${formatSeconds(performance.now() - startedAt, true)}`);
       this.result = await this.client.complete(this.settings, this.getApiKey(), prompt);
       const finishedAt = performance.now();
       this.timingSummary = `Source: ${formatSeconds(sourceReadyAt - startedAt)} · Model: ${formatSeconds(finishedAt - sourceReadyAt)} · Total: ${formatSeconds(finishedAt - startedAt)}`;
@@ -433,6 +433,6 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Mdfy could not complete the request.";
 }
 
-function formatSeconds(milliseconds: number): string {
-  return `${(milliseconds / 1_000).toFixed(1)} s`;
+function formatSeconds(milliseconds: number, whole = false): string {
+  return `${whole ? Math.floor(milliseconds / 1_000) : (milliseconds / 1_000).toFixed(1)} s`;
 }
