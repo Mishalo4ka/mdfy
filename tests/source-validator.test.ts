@@ -55,6 +55,8 @@ describe("source validation", () => {
     expect(validateDocumentFile(new File(["x"], "draft.docx"))).toContain("wordprocessingml");
     expect(validateDocumentFile(new File(["x"], "slides.pptx"))).toContain("presentationml");
     expect(() => validateDocumentFile(new File(["x"], "notes.txt"))).toThrow("PDF, DOCX, or PPTX");
+    expect(() => validateDocumentFile(new File(["x"], "notes.constructor"))).toThrow("PDF, DOCX, or PPTX");
+    expect(() => validateDocumentFile(new File(["x"], "notes.__proto__"))).toThrow("PDF, DOCX, or PPTX");
     expect(() => validateDocumentFile(new File([], "empty.pdf"))).toThrow("empty");
     const huge = new File(["x"], "huge.pdf");
     Object.defineProperty(huge, "size", { value: MAX_DOCUMENT_BYTES + 1 });
@@ -62,6 +64,31 @@ describe("source validation", () => {
     const asset = await fileToDocumentAsset(pdf);
     expect(asset.dataUrl).toMatch(/^data:application\/pdf;base64,/);
     expect(asset.name).toBe("Table.PDF");
+  });
+
+  it("preserves file bytes and normalizes the document MIME type in data URLs", async () => {
+    const bytes = new Uint8Array([0, 128, 255]);
+    const imageAsset = await fileToImageAsset(new File([bytes], "image.png", { type: "image/png" }));
+    const document = await fileToDocumentAsset(new File([bytes], "report.pdf", { type: "application/octet-stream" }));
+    expect(imageAsset.dataUrl).toBe("data:image/png;base64,AID/");
+    expect(document.dataUrl).toBe("data:application/pdf;base64,AID/");
+  });
+
+  it("reports read failures for images and documents using the original filename", async () => {
+    const read = vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {
+      this.dispatchEvent(new ProgressEvent("error"));
+    });
+    try {
+      await expect(fileToImageAsset(new File(["x"], "image.png", { type: "image/png" })))
+        .rejects.toThrow("Could not read image.png.");
+      await expect(fileToDocumentAsset(new File(["x"], "report.pdf")))
+        .rejects.toThrow("Could not read report.pdf.");
+      vi.mocked(heicTo).mockResolvedValue(new Blob(["jpeg"], { type: "image/jpeg" }));
+      await expect(fileToImageAsset(new File(["heic"], "photo.HEIC")))
+        .rejects.toThrow("Could not read photo.HEIC.");
+    } finally {
+      read.mockRestore();
+    }
   });
 
   it("reads TXT and MD as UTF-8 text and rejects invalid or empty input", async () => {

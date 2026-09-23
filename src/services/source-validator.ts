@@ -60,7 +60,7 @@ export function validateTextLength(length: number, maximum: number): void {
 
 export function validateDocumentFile(file: File): DocumentAsset["mimeType"] {
   const extension = file.name.toLowerCase().split(".").pop();
-  if (!extension || !(extension in DOCUMENT_MIME_TYPES)) {
+  if (!extension || !Object.hasOwn(DOCUMENT_MIME_TYPES, extension)) {
     throw new SourceValidationError("Choose a PDF, DOCX, or PPTX file.");
   }
   if (file.size === 0) throw new SourceValidationError("The selected file is empty.");
@@ -100,12 +100,7 @@ export async function fileToTextSource(file: File): Promise<TextSource> {
 
 export async function fileToDocumentAsset(file: File): Promise<DocumentAsset> {
   const mimeType = validateDocumentFile(file);
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new SourceValidationError(`Could not read ${file.name}.`));
-    reader.readAsDataURL(file);
-  });
+  const dataUrl = await readDataUrl(file);
   const encoded = dataUrl.split(",", 2)[1];
   if (!encoded) throw new SourceValidationError(`Could not read ${file.name}.`);
   return {
@@ -142,12 +137,7 @@ export async function fileToImageAsset(file: File): Promise<ImageAsset> {
     if (image.size > MAX_IMAGE_BYTES) throw new SourceValidationError(`${file.name} is larger than 10 MB after conversion.`);
   }
 
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new SourceValidationError(`Could not read ${file.name}.`));
-    reader.readAsDataURL(image);
-  });
+  const dataUrl = await readDataUrl(image, file.name);
 
   return {
     id: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`,
@@ -156,4 +146,13 @@ export async function fileToImageAsset(file: File): Promise<ImageAsset> {
     size: image.size,
     dataUrl,
   };
+}
+
+function readDataUrl(file: File, name = file.name): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new SourceValidationError(`Could not read ${name}.`));
+    reader.readAsDataURL(file);
+  });
 }

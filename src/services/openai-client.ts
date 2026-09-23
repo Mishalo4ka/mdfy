@@ -1,5 +1,5 @@
 import type { MdfySettings, PromptPayload } from "../types";
-import type { HttpRequester } from "./http";
+import type { HttpRequester, HttpResponse } from "./http";
 import { normalizeMarkdownResponse } from "./response-normalizer";
 
 interface TextPart {
@@ -64,25 +64,7 @@ export class OpenAiCompatibleClient {
       stream: false,
     };
 
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-
-    let response;
-    try {
-      response = await withTimeout(
-        this.request({
-          url: chatCompletionsUrl(settings.baseUrl),
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-          throw: false,
-        }),
-        settings.timeoutSeconds * 1_000,
-      );
-    } catch (error) {
-      if (error instanceof LlmRequestError) throw error;
-      throw new LlmRequestError(error instanceof Error ? error.message : "The network request failed.");
-    }
+    const response = await this.post(chatCompletionsUrl(settings.baseUrl), settings, apiKey, body);
 
     const payload = asChatResponse(response.json);
     if (response.status < 200 || response.status >= 300) {
@@ -101,37 +83,19 @@ export class OpenAiCompatibleClient {
   private async completeFile(settings: MdfySettings, apiKey: string | null, prompt: PromptPayload): Promise<string> {
     const file = prompt.file;
     if (!file) throw new LlmRequestError("Choose a document first.");
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-
-    let response;
-    try {
-      response = await withTimeout(
-        this.request({
-          url: responsesUrl(settings.baseUrl),
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            model: settings.model.trim(),
-            instructions: prompt.system,
-            input: [{
-              role: "user",
-              content: [
-                { type: "input_text", text: prompt.userText },
-                { type: "input_file", filename: file.name, file_data: file.dataUrl },
-              ],
-            }],
-            max_output_tokens: settings.maxOutputTokens,
-            store: false,
-          }),
-          throw: false,
-        }),
-        settings.timeoutSeconds * 1_000,
-      );
-    } catch (error) {
-      if (error instanceof LlmRequestError) throw error;
-      throw new LlmRequestError(error instanceof Error ? error.message : "The network request failed.");
-    }
+    const response = await this.post(responsesUrl(settings.baseUrl), settings, apiKey, {
+      model: settings.model.trim(),
+      instructions: prompt.system,
+      input: [{
+        role: "user",
+        content: [
+          { type: "input_text", text: prompt.userText },
+          { type: "input_file", filename: file.name, file_data: file.dataUrl },
+        ],
+      }],
+      max_output_tokens: settings.maxOutputTokens,
+      store: false,
+    });
 
     if (response.status < 200 || response.status >= 300) {
       let providerMessage = "";
@@ -167,6 +131,21 @@ export class OpenAiCompatibleClient {
       .join("\n");
     if (!markdown?.trim()) throw new LlmRequestError("The endpoint returned no Markdown content.");
     return normalizeMarkdownResponse(markdown);
+  }
+
+  private async post(url: string, settings: MdfySettings, apiKey: string | null, body: unknown): Promise<HttpResponse> {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+    try {
+      return await withTimeout(
+        this.request({ url, method: "POST", headers, body: JSON.stringify(body), throw: false }),
+        settings.timeoutSeconds * 1_000,
+      );
+    } catch (error) {
+      if (error instanceof LlmRequestError) throw error;
+      throw new LlmRequestError(error instanceof Error ? error.message : "The network request failed.");
+    }
   }
 
   async testConnection(settings: MdfySettings, apiKey: string | null): Promise<void> {

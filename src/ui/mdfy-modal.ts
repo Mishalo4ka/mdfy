@@ -16,12 +16,9 @@ import type { ArticleExtractor } from "../services/article-extractor";
 import type { OpenAiCompatibleClient } from "../services/openai-client";
 import type {
   EditorContext,
-  DocumentSource,
   ImageAsset,
-  ImageSource,
   MdfySettings,
   PromptSource,
-  TextSource,
 } from "../types";
 
 type SourceTab = "text" | "images" | "url" | "file";
@@ -311,10 +308,9 @@ export class MdfyModal extends Modal {
     this.busy = true;
     button.disabled = true;
     button.setText("Generating…");
-    status.setText(this.activeTab === "url" ? "Extracting article…" : this.activeTab === "file" ? "Reading file…" : "Preparing request…");
     const startedAt = performance.now();
-    let sourceReadyAt = startedAt;
     let phase = this.activeTab === "url" ? "Extracting article" : this.activeTab === "file" ? "Reading file" : "Preparing request";
+    status.setText(`${phase}…`);
     const timer = window.setInterval(() => {
       status.setText(`${phase}… ${formatSeconds(performance.now() - startedAt, true)}`);
     }, 1_000);
@@ -322,7 +318,7 @@ export class MdfyModal extends Modal {
     try {
       this.validateConfiguration();
       const source = await this.prepareSource();
-      sourceReadyAt = performance.now();
+      const sourceReadyAt = performance.now();
       const prompt = buildPrompt({
         source,
         currentNote: this.useNoteContext
@@ -355,11 +351,11 @@ export class MdfyModal extends Modal {
     switch (this.activeTab) {
       case "text": {
         if (!this.text.trim()) throw new SourceValidationError("Paste some source text first.");
-        return { kind: "text", text: this.text } satisfies TextSource;
+        return { kind: "text", text: this.text };
       }
       case "images": {
         validateImages(this.images);
-        return { kind: "images", images: [...this.images] } satisfies ImageSource;
+        return { kind: "images", images: [...this.images] };
       }
       case "url": {
         if (!this.url.trim()) throw new SourceValidationError("Enter an article URL first.");
@@ -368,7 +364,7 @@ export class MdfyModal extends Modal {
       case "file": {
         if (!this.documentFile) throw new SourceValidationError("Choose a TXT, MD, PDF, DOCX, or PPTX file first.");
         if (isTextFile(this.documentFile)) return fileToTextSource(this.documentFile);
-        return { kind: "file", file: await fileToDocumentAsset(this.documentFile) } satisfies DocumentSource;
+        return { kind: "file", file: await fileToDocumentAsset(this.documentFile) };
       }
     }
   }
@@ -403,8 +399,12 @@ export class MdfyModal extends Modal {
     if (this.context.selection) {
       const replace = footer.createEl("button", { text: "Replace selection" });
       replace.addEventListener("click", () => {
-        replaceOriginalSelection(this.context, this.result);
-        this.close();
+        try {
+          replaceOriginalSelection(this.context, this.result);
+          this.close();
+        } catch (error) {
+          new Notice(errorMessage(error));
+        }
       });
     }
 

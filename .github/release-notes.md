@@ -1,10 +1,11 @@
 Mdfy turns text, images, files, and public articles into Markdown inside Obsidian using your own OpenAI-compatible API.
 
-### What's new in 0.2.1
+### What's new in 0.2.2
 
-- Replace the HEIC decoder with a newer, CSP-compatible version to improve support for recent photos. HEIC is still converted locally to JPEG before sending.
-- Explain local HEIC decoding failures without losing the filled-in form.
-- Include license texts and corresponding source archives for the bundled HEIC decoder. The installed `main.js` embeds the license notices and texts.
+- Insert generated Markdown at the current cursor position.
+- Prevent replacing the original selection if the note changed before or within it. The result stays available to copy or insert instead.
+- Reject unsupported document extensions that could previously pass validation.
+- Simplify shared request handling and file reading, with expanded regression tests.
 
 ### Install in Obsidian
 

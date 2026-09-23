@@ -18,14 +18,17 @@ export function captureEditorContext(editor: Editor): EditorContext {
     selection,
     selectionFrom,
     selectionTo,
-    cursor: editor.getCursor(),
+    selectionPrefix: editor.getRange({ line: 0, ch: 0 }, selectionTo),
   };
 }
 
 export function insertAtCursor(context: EditorContext, markdown: string): void {
-  context.editor.replaceRange(markdown, context.cursor);
+  context.editor.replaceRange(markdown, context.editor.getCursor());
 }
 
 export function replaceOriginalSelection(context: EditorContext, markdown: string): void {
+  if (!context.selection || !context.editor.getValue().startsWith(context.selectionPrefix)) {
+    throw new Error("The note changed before or within the original selection. Copy the result or insert it at the current cursor instead.");
+  }
   context.editor.replaceRange(markdown, context.selectionFrom, context.selectionTo);
 }

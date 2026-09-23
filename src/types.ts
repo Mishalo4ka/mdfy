@@ -30,11 +30,6 @@ export interface ImageSource {
   images: ImageAsset[];
 }
 
-export interface UrlSource {
-  kind: "url";
-  url: string;
-}
-
 export interface DocumentAsset {
   name: string;
   mimeType: (typeof DOCUMENT_MIME_TYPES)[keyof typeof DOCUMENT_MIME_TYPES];
@@ -46,8 +41,6 @@ export interface DocumentSource {
   kind: "file";
   file: DocumentAsset;
 }
-
-export type InputSource = TextSource | ImageSource | UrlSource | DocumentSource;
 
 export interface ArticleSource {
   kind: "article";
@@ -74,7 +67,7 @@ export interface EditorContext {
   selection: string;
   selectionFrom: EditorPosition;
   selectionTo: EditorPosition;
-  cursor: EditorPosition;
+  selectionPrefix: string;
 }
 
 export interface MdfySettings {

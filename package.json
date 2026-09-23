@@ -1,6 +1,6 @@
 {
   "name": "mdfy",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Turn text, images, and articles into clean Markdown inside Obsidian.",
   "main": "main.js",
   "type": "module",
