@@ -1,6 +1,6 @@
 {
   "name": "mdfy",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Turn text, images, and articles into clean Markdown inside Obsidian.",
   "main": "main.js",
   "type": "module",
@@ -11,7 +11,7 @@
     "lint": "eslint src tests",
     "test": "vitest run",
     "test:watch": "vitest",
-    "version": "node version-bump.mjs"
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
   "keywords": [
     "obsidian",
