@@ -106,6 +106,18 @@
   margin-top: var(--size-4-3);
 }
 
+.mdfy-file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-3);
+  margin-top: var(--size-4-3);
+  padding: var(--size-4-2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  overflow-wrap: anywhere;
+}
+
 .mdfy-image-item {
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr) auto;

@@ -31,6 +31,7 @@ export function buildPrompt(options: BuildPromptOptions): PromptPayload {
     system: SYSTEM_PROMPT,
     userText,
     images: source.kind === "images" ? source.images : [],
+    file: source.kind === "file" ? source.file : undefined,
     textLength: currentNote.length + sourceText.length + additionalInstruction.length,
   };
 }
@@ -45,6 +46,8 @@ function formatSource(source: PromptSource): string {
       const byline = source.byline ? `\nAuthor: ${source.byline}` : "";
       return `Title: ${source.title}\nURL: ${source.url}${byline}\n\n${source.markdown}`;
     }
+    case "file":
+      return `Read the attached file ${source.file.name} and convert its content to Markdown.`;
   }
 }
 

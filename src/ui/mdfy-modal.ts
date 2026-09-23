@@ -2,8 +2,10 @@ import { Modal, Notice, Setting, TextComponent, setIcon, type App } from "obsidi
 import { insertAtCursor, replaceOriginalSelection } from "../editor-actions";
 import { buildPrompt } from "../services/prompt-builder";
 import {
+  fileToDocumentAsset,
   fileToImageAsset,
   SourceValidationError,
+  validateDocumentFile,
   validateImages,
   validateTextLength,
 } from "../services/source-validator";
@@ -11,6 +13,7 @@ import type { ArticleExtractor } from "../services/article-extractor";
 import type { OpenAiCompatibleClient } from "../services/openai-client";
 import type {
   EditorContext,
+  DocumentSource,
   ImageAsset,
   ImageSource,
   MdfySettings,
@@ -18,7 +21,7 @@ import type {
   TextSource,
 } from "../types";
 
-type SourceTab = "text" | "images" | "url";
+type SourceTab = "text" | "images" | "url" | "file";
 
 interface MdfyModalOptions {
   context: EditorContext;
@@ -39,6 +42,7 @@ export class MdfyModal extends Modal {
   private text = "";
   private url = "";
   private images: ImageAsset[] = [];
+  private documentFile: File | null = null;
   private additionalInstruction = "";
   private useNoteContext = true;
   private result = "";
@@ -76,11 +80,13 @@ export class MdfyModal extends Modal {
     this.addSourceButton(sourcePicker, "text", "Text", "file-text");
     this.addSourceButton(sourcePicker, "images", "Images", "image");
     this.addSourceButton(sourcePicker, "url", "URL", "link");
+    this.addSourceButton(sourcePicker, "file", "Files", "paperclip");
 
     const sourceContainer = contentEl.createDiv({ cls: "mdfy-source" });
     if (this.activeTab === "text") this.renderTextSource(sourceContainer);
     if (this.activeTab === "images") this.renderImageSource(sourceContainer);
     if (this.activeTab === "url") this.renderUrlSource(sourceContainer);
+    if (this.activeTab === "file") this.renderFileSource(sourceContainer);
 
     const instructionBlock = contentEl.createDiv({ cls: "mdfy-instruction-block" });
     instructionBlock.createEl("label", {
@@ -211,6 +217,41 @@ export class MdfyModal extends Modal {
     this.images.forEach((image, index) => this.renderImageItem(list, image, index));
   }
 
+  private renderFileSource(container: HTMLElement): void {
+    container.createEl("p", {
+      cls: "setting-item-description",
+      text: "Choose one PDF, DOCX, or PPTX file (up to 20 MB). The whole file is sent to your provider through the Responses API. PDF pages can be read visually; embedded images and charts in DOCX and PPTX may be missed.",
+    });
+    const picker = container.createEl("input", {
+      type: "file",
+      attr: {
+        accept: ".pdf,.docx,.pptx",
+        "aria-label": "Choose a PDF, DOCX, or PPTX file",
+      },
+    });
+    picker.addEventListener("change", () => {
+      const file = picker.files?.[0];
+      if (!file) return;
+      try {
+        validateDocumentFile(file);
+        this.documentFile = file;
+        this.renderInput();
+      } catch (error) {
+        new Notice(errorMessage(error));
+        picker.value = "";
+      }
+    });
+    if (this.documentFile) {
+      const item = container.createDiv({ cls: "mdfy-file-item" });
+      item.createEl("span", { text: `${this.documentFile.name} · ${formatBytes(this.documentFile.size)}` });
+      const remove = item.createEl("button", { text: "Remove", attr: { "aria-label": "Remove selected file" } });
+      remove.addEventListener("click", () => {
+        this.documentFile = null;
+        this.renderInput();
+      });
+    }
+  }
+
   private renderImageItem(container: HTMLElement, image: ImageAsset, index: number): void {
     const item = container.createDiv({ cls: "mdfy-image-item" });
     item.createEl("img", { attr: { src: image.dataUrl, alt: "" } });
@@ -266,10 +307,10 @@ export class MdfyModal extends Modal {
     this.busy = true;
     button.disabled = true;
     button.setText("Generating…");
-    status.setText(this.activeTab === "url" ? "Extracting article…" : "Preparing request…");
+    status.setText(this.activeTab === "url" ? "Extracting article…" : this.activeTab === "file" ? "Reading file…" : "Preparing request…");
     const startedAt = performance.now();
     let sourceReadyAt = startedAt;
-    let phase = this.activeTab === "url" ? "Extracting article" : "Preparing request";
+    let phase = this.activeTab === "url" ? "Extracting article" : this.activeTab === "file" ? "Reading file" : "Preparing request";
     const timer = window.setInterval(() => {
       status.setText(`${phase}… ${formatSeconds(performance.now() - startedAt)}`);
     }, 1_000);
@@ -319,6 +360,10 @@ export class MdfyModal extends Modal {
       case "url": {
         if (!this.url.trim()) throw new SourceValidationError("Enter an article URL first.");
         return this.articleExtractor.extract(this.url);
+      }
+      case "file": {
+        if (!this.documentFile) throw new SourceValidationError("Choose a PDF, DOCX, or PPTX file first.");
+        return { kind: "file", file: await fileToDocumentAsset(this.documentFile) } satisfies DocumentSource;
       }
     }
   }

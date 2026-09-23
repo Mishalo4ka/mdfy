@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   SourceValidationError,
+  fileToDocumentAsset,
+  validateDocumentFile,
   validateHttpUrl,
   validateImages,
   validateTextLength,
 } from "../src/services/source-validator";
-import { MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES, type ImageAsset } from "../src/types";
+import { MAX_DOCUMENT_BYTES, MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES, type ImageAsset } from "../src/types";
 
 const image = (overrides: Partial<ImageAsset> = {}): ImageAsset => ({
   id: "id",
@@ -39,5 +41,20 @@ describe("source validation", () => {
 
   it("does not silently truncate text", () => {
     expect(() => validateTextLength(101, 100)).toThrow("above the configured 100 character limit");
+  });
+
+  it("accepts supported documents and rejects empty, oversized, and unsupported files", async () => {
+    const pdf = new File(["document"], "Table.PDF", { type: "application/pdf" });
+    expect(validateDocumentFile(pdf)).toBe("application/pdf");
+    expect(validateDocumentFile(new File(["x"], "draft.docx"))).toContain("wordprocessingml");
+    expect(validateDocumentFile(new File(["x"], "slides.pptx"))).toContain("presentationml");
+    expect(() => validateDocumentFile(new File(["x"], "notes.txt"))).toThrow("PDF, DOCX, or PPTX");
+    expect(() => validateDocumentFile(new File([], "empty.pdf"))).toThrow("empty");
+    const huge = new File(["x"], "huge.pdf");
+    Object.defineProperty(huge, "size", { value: MAX_DOCUMENT_BYTES + 1 });
+    expect(() => validateDocumentFile(huge)).toThrow("larger than 20 MB");
+    const asset = await fileToDocumentAsset(pdf);
+    expect(asset.dataUrl).toMatch(/^data:application\/pdf;base64,/);
+    expect(asset.name).toBe("Table.PDF");
   });
 });

@@ -27,4 +27,13 @@ describe("buildPrompt", () => {
     expect(prompt.images).toEqual(images);
     expect(prompt.userText.indexOf("slide-1.png")).toBeLessThan(prompt.userText.indexOf("slide-2.png"));
   });
+
+  it("keeps a document outside the text prompt", () => {
+    const file = { name: "report.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" as const, size: 4, dataUrl: "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,AAAA" };
+    const prompt = buildPrompt({ source: { kind: "file", file }, currentNote: "# Context" });
+    expect(prompt.file).toBe(file);
+    expect(prompt.userText).toContain("report.docx");
+    expect(prompt.userText).not.toContain("base64");
+    expect(prompt.textLength).toBeLessThan(200);
+  });
 });

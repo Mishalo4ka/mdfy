@@ -25,6 +25,16 @@ interface ChatCompletionResponse {
   };
 }
 
+interface ModelResponse {
+  status?: string;
+  error?: { message?: string };
+  incomplete_details?: { reason?: string };
+  output?: Array<{
+    type?: string;
+    content?: Array<{ type?: string; text?: string }>;
+  }>;
+}
+
 export class LlmRequestError extends Error {
   constructor(
     message: string,
@@ -38,6 +48,7 @@ export class OpenAiCompatibleClient {
   constructor(private readonly request: HttpRequester) {}
 
   async complete(settings: MdfySettings, apiKey: string | null, prompt: PromptPayload): Promise<string> {
+    if (prompt.file) return this.completeFile(settings, apiKey, prompt);
     const content: Array<TextPart | ImagePart> = [{ type: "text", text: prompt.userText }];
     for (const image of prompt.images) {
       content.push({ type: "image_url", image_url: { url: image.dataUrl } });
@@ -87,6 +98,77 @@ export class OpenAiCompatibleClient {
     return normalizeMarkdownResponse(markdown);
   }
 
+  private async completeFile(settings: MdfySettings, apiKey: string | null, prompt: PromptPayload): Promise<string> {
+    const file = prompt.file;
+    if (!file) throw new LlmRequestError("Choose a document first.");
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+
+    let response;
+    try {
+      response = await withTimeout(
+        this.request({
+          url: responsesUrl(settings.baseUrl),
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model: settings.model.trim(),
+            instructions: prompt.system,
+            input: [{
+              role: "user",
+              content: [
+                { type: "input_text", text: prompt.userText },
+                { type: "input_file", filename: file.name, file_data: file.dataUrl },
+              ],
+            }],
+            max_output_tokens: settings.maxOutputTokens,
+            store: false,
+          }),
+          throw: false,
+        }),
+        settings.timeoutSeconds * 1_000,
+      );
+    } catch (error) {
+      if (error instanceof LlmRequestError) throw error;
+      throw new LlmRequestError(error instanceof Error ? error.message : "The network request failed.");
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      let providerMessage = "";
+      try {
+        providerMessage = asModelResponse(response.json).error?.message ?? "";
+      } catch {
+        // Some providers return non-JSON error pages for unsupported endpoints.
+      }
+      const detail = providerMessage || response.text.slice(0, 300).trim();
+      if (response.status === 404) {
+        throw new LlmRequestError(`The provider does not offer the Responses endpoint, or the model was not found.${detail ? ` ${detail}` : ""}`, 404);
+      }
+      if (response.status === 413) throw new LlmRequestError("The document request is too large. Choose a smaller file.", 413);
+      throw new LlmRequestError(statusMessage(response.status, detail), response.status);
+    }
+    let payload: ModelResponse;
+    try {
+      payload = asModelResponse(response.json);
+    } catch {
+      throw new LlmRequestError("The provider returned an invalid Responses API result.");
+    }
+    if (payload.status === "incomplete") {
+      throw new LlmRequestError(`The model stopped before finishing the document${payload.incomplete_details?.reason ? ` (${payload.incomplete_details.reason})` : ""}. Try a shorter file or increase the output token limit.`);
+    }
+    if (payload.status && payload.status !== "completed") {
+      throw new LlmRequestError(payload.error?.message || `The provider returned response status ${payload.status}.`);
+    }
+    const markdown = payload.output
+      ?.filter((item) => item.type === "message")
+      .flatMap((item) => item.content ?? [])
+      .filter((part) => part.type === "output_text" && typeof part.text === "string")
+      .map((part) => part.text)
+      .join("\n");
+    if (!markdown?.trim()) throw new LlmRequestError("The endpoint returned no Markdown content.");
+    return normalizeMarkdownResponse(markdown);
+  }
+
   async testConnection(settings: MdfySettings, apiKey: string | null): Promise<void> {
     await this.complete(settings, apiKey, {
       system: "Reply with OK only.",
@@ -103,9 +185,21 @@ export function chatCompletionsUrl(baseUrl: string): string {
   return trimmed.endsWith("/chat/completions") ? trimmed : `${trimmed}/chat/completions`;
 }
 
+export function responsesUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  if (!trimmed) throw new LlmRequestError("Configure an API base URL first.");
+  const root = trimmed.replace(/\/(?:chat\/completions|responses)$/, "");
+  return `${root}/responses`;
+}
+
 function asChatResponse(value: unknown): ChatCompletionResponse {
   if (typeof value !== "object" || value === null) return {};
   return value as ChatCompletionResponse;
+}
+
+function asModelResponse(value: unknown): ModelResponse {
+  if (typeof value !== "object" || value === null) return {};
+  return value as ModelResponse;
 }
 
 function readContent(content: string | Array<{ type?: string; text?: string }> | undefined): string {

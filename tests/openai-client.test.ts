@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { OpenAiCompatibleClient, chatCompletionsUrl } from "../src/services/openai-client";
+import { OpenAiCompatibleClient, chatCompletionsUrl, responsesUrl } from "../src/services/openai-client";
 import type { HttpRequester } from "../src/services/http";
 import type { MdfySettings, PromptPayload } from "../src/types";
 
@@ -25,6 +25,7 @@ describe("OpenAiCompatibleClient", () => {
     expect(chatCompletionsUrl("https://provider.example/v1/chat/completions")).toBe(
       "https://provider.example/v1/chat/completions",
     );
+    expect(responsesUrl("https://provider.example/v1/chat/completions")).toBe("https://provider.example/v1/responses");
   });
 
   it("sends text and images using Chat Completions content parts", async () => {
@@ -59,5 +60,50 @@ describe("OpenAiCompatibleClient", () => {
     await expect(new OpenAiCompatibleClient(request).complete(settings, null, prompt)).rejects.toThrow(
       "rate limit",
     );
+  });
+
+  it("sends a complete document to Responses and joins all output text", async () => {
+    const request: HttpRequester = vi.fn(async () => ({
+      status: 200,
+      headers: {},
+      text: "",
+      json: {
+        status: "completed",
+        output: [
+          { type: "reasoning" },
+          { type: "message", content: [{ type: "output_text", text: "# Table" }] },
+          { type: "message", content: [{ type: "output_text", text: "| A | B |" }] },
+        ],
+      },
+    }));
+    const result = await new OpenAiCompatibleClient(request).complete(settings, "secret", {
+      ...prompt,
+      file: { name: "table.pdf", mimeType: "application/pdf", size: 4, dataUrl: "data:application/pdf;base64,AAAA" },
+    });
+    expect(result).toBe("# Table\n| A | B |");
+    const call = vi.mocked(request).mock.calls[0]?.[0];
+    expect(call?.url).toBe("https://provider.example/v1/responses");
+    const body = JSON.parse(call?.body ?? "{}") as Record<string, unknown>;
+    expect(JSON.stringify(body)).toContain('"type":"input_file"');
+    expect(JSON.stringify(body)).toContain("data:application/pdf;base64,AAAA");
+    expect(body.store).toBe(false);
+  });
+
+  it("reports unsupported endpoints and incomplete document responses", async () => {
+    const filePrompt: PromptPayload = {
+      ...prompt,
+      file: { name: "table.pdf", mimeType: "application/pdf", size: 4, dataUrl: "data:application/pdf;base64,AAAA" },
+    };
+    const unavailable: HttpRequester = vi.fn(async () => ({ status: 404, headers: {}, text: "Not found", json: {} }));
+    await expect(new OpenAiCompatibleClient(unavailable).complete(settings, null, filePrompt)).rejects.toThrow("Responses endpoint");
+    const incomplete: HttpRequester = vi.fn(async () => ({
+      status: 200,
+      headers: {},
+      text: "",
+      json: { status: "incomplete", incomplete_details: { reason: "max_output_tokens" }, output: [] },
+    }));
+    await expect(new OpenAiCompatibleClient(incomplete).complete(settings, null, filePrompt)).rejects.toThrow("max_output_tokens");
+    const empty: HttpRequester = vi.fn(async () => ({ status: 200, headers: {}, text: "", json: { status: "completed", output: [] } }));
+    await expect(new OpenAiCompatibleClient(empty).complete(settings, null, filePrompt)).rejects.toThrow("no Markdown content");
   });
 });

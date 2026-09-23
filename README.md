@@ -1,12 +1,13 @@
 # Mdfy
 
-Mdfy turns text, screenshots, slide photos, and public articles into clean Markdown without leaving Obsidian. It uses your own OpenAI-compatible endpoint and can follow the structure and terminology of the note you are editing.
+Mdfy turns text, screenshots, slide photos, documents, and public articles into clean Markdown without leaving Obsidian. It uses your own OpenAI-compatible endpoint and can follow the structure and terminology of the note you are editing.
 
 ## Features
 
 - Format pasted text or existing Markdown.
 - Start from text selected in the current note; Mdfy fills the Text source automatically.
 - Process up to 10 ordered JPEG, PNG, or WebP images with a vision-capable model.
+- Send one PDF, DOCX, or PPTX file (up to 20 MB) to a provider that supports the Responses API.
 - Extract the readable content of public, static HTML articles.
 - Use the current note as optional style and deduplication context.
 - Add a one-off instruction such as “summarize this” or “make a table”.
@@ -18,6 +19,7 @@ Mdfy turns text, screenshots, slide photos, and public articles into clean Markd
 - Obsidian 1.11.4 or newer on desktop.
 - An OpenAI-compatible `/chat/completions` endpoint.
 - A vision-capable model for image input.
+- A provider and model with Responses API file-input support for PDF, DOCX, and PPTX. Support varies among OpenAI-compatible endpoints.
 
 ## Install
 
@@ -52,15 +54,17 @@ Use **Test connection** to verify the configuration. The test sends a minimal Ch
 
 ## Use
 
-Open a Markdown note and choose **Mdfy: Open Mdfy** from the command palette, assign a hotkey, or use the ribbon icon. Choose Text, Images, or URL, optionally add an instruction, and generate Markdown. If you select text before opening Mdfy, it fills the Text source, and the selected passage is excluded from the note context so the model can rewrite it. Images can be selected, pasted, or dropped into the image area. Nothing is written to the note until you choose an insertion action.
+Open a Markdown note and choose **Mdfy: Open Mdfy** from the command palette, assign a hotkey, or use the ribbon icon. Choose Text, Images, URL, or Files, optionally add an instruction, and generate Markdown. If you select text before opening Mdfy, it fills the Text source, and the selected passage is excluded from the note context so the model can rewrite it. Images can be selected, pasted, or dropped into the image area. Files accepts one PDF, DOCX, or PPTX document up to 20 MB. Nothing is written to the note until you choose an insertion action.
 
-Article extraction supports public HTML returned by the server. It does not run page JavaScript, bypass authentication or paywalls, or process PDF files.
+Files are read in memory and sent in full to the configured provider through its `/responses` endpoint; Mdfy does not upload them to a separate file storage service. OpenAI's Responses API sends PDF text and page images to vision-capable models, but extracts only text from DOCX and PPTX. Embedded images and charts in those formats may be omitted. Other providers may behave differently or reject file inputs. The **Test connection** button checks Chat Completions only and does not verify file support.
+
+URL article extraction supports public HTML returned by the server. It does not run page JavaScript, bypass authentication or paywalls, or process PDF links; choose a local PDF in Files instead.
 
 ## Privacy
 
 Mdfy has no backend, accounts, analytics, or telemetry. Requests go directly from Obsidian to the endpoint you configure. Depending on your choices, a request can contain:
 
-- the source text, images, or extracted article;
+- the source text, images, complete selected document, or extracted article;
 - your additional instruction;
 - the complete active note when **Use current note as context** is enabled.
 
